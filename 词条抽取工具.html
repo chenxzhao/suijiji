@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>随机词条抽取工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            background-color: #fff;
+            color: #333;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 500px;
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+
+        .add-section {
+            display: flex;
+            gap: 10px;
+            width: 100%;
+        }
+
+        #wordInput {
+            flex: 1;
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        #wordInput:focus {
+            border-color: #666;
+        }
+
+        button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 6px;
+            background-color: #333;
+            color: #fff;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #555;
+        }
+
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .draw-section {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            align-items: center;
+        }
+
+        #result {
+            font-size: 28px;
+            font-weight: bold;
+            color: #e63946;
+            height: 40px;
+            text-align: center;
+        }
+
+        .empty-tip {
+            font-size: 14px;
+            color: #999;
+        }
+
+        /* 弹窗样式 */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, visibility 0.3s;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            background-color: #fff;
+            padding: 25px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 400px;
+            max-height: 70vh;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 15px;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        #closeModal {
+            background-color: #eee;
+            color: #333;
+            padding: 8px 12px;
+            font-size: 14px;
+        }
+
+        #closeModal:hover {
+            background-color: #ddd;
+        }
+
+        .word-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            flex: 1;
+        }
+
+        .word-item {
+            padding: 10px 15px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .word-item.selected {
+            background-color: #e1f5fe;
+            border: 1px solid #29b6f6;
+        }
+
+        .word-item:hover {
+            background-color: #f0f0f0;
+        }
+
+        .no-words {
+            text-align: center;
+            color: #999;
+            padding: 20px 0;
+            font-size: 16px;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
+        }
+
+        #deleteSelected {
+            background-color: #e63946;
+        }
+
+        #deleteSelected:hover {
+            background-color: #c1121f;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 添加词条区域 -->
+        <div class="add-section">
+            <input type="text" id="wordInput" placeholder="输入词条内容（最多10字）" maxlength="10">
+            <button id="addBtn">添加词条</button>
+        </div>
+
+        <!-- 抽取词条区域 -->
+        <div class="draw-section">
+            <button id="drawBtn">抽取词条</button>
+            <div id="result"></div>
+        </div>
+
+        <!-- 显示词条按钮 -->
+        <button id="showBtn">显示所有词条</button>
+    </div>
+
+    <!-- 弹窗 -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">所有词条</h3>
+                <button id="closeModal">关闭</button>
+            </div>
+            <div class="word-list" id="wordList">
+                <!-- 词条列表将动态生成 -->
+            </div>
+            <div class="modal-footer">
+                <button id="deleteSelected" disabled>删除选中词条</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DOM元素
+        const wordInput = document.getElementById('wordInput');
+        const addBtn = document.getElementById('addBtn');
+        const drawBtn = document.getElementById('drawBtn');
+        const showBtn = document.getElementById('showBtn');
+        const result = document.getElementById('result');
+        const modalOverlay = document.getElementById('modalOverlay');
+        const closeModal = document.getElementById('closeModal');
+        const wordList = document.getElementById('wordList');
+        const deleteSelectedBtn = document.getElementById('deleteSelected');
+
+        // 从本地存储获取词条列表，无则初始化空数组
+        let words = JSON.parse(localStorage.getItem('wordList')) || [];
+        let selectedWords = new Set(); // 存储选中的词条
+
+        // 添加词条
+        addBtn.addEventListener('click', () => {
+            const word = wordInput.value.trim();
+            if (!word) return; // 空内容不添加
+
+            // 检查是否重复
+            const isDuplicate = words.includes(word);
+            if (isDuplicate) return;
+
+            // 检查是否超过最大数量（20个）
+            if (words.length >= 20) return;
+
+            // 添加到数组并更新本地存储
+            words.push(word);
+            localStorage.setItem('wordList', JSON.stringify(words));
+
+            // 清空输入框
+            wordInput.value = '';
+        });
+
+        // 抽取词条
+        drawBtn.addEventListener('click', () => {
+            if (words.length === 0) {
+                result.textContent = '暂无词条，请先添加';
+                result.style.color = '#999';
+                return;
+            }
+
+            // 随机抽取
+            const randomIndex = Math.floor(Math.random() * words.length);
+            const randomWord = words[randomIndex];
+
+            // 显示结果（突出样式）
+            result.textContent = randomWord;
+            result.style.color = '#e63946';
+        });
+
+        // 显示所有词条（打开弹窗）
+        showBtn.addEventListener('click', () => {
+            selectedWords.clear(); // 打开弹窗时清空选中状态
+            renderWordList();
+            updateDeleteBtnState(); // 更新删除按钮状态
+            modalOverlay.classList.add('active');
+        });
+
+        // 关闭弹窗
+        closeModal.addEventListener('click', () => {
+            modalOverlay.classList.remove('active');
+        });
+
+        // 点击弹窗外部关闭
+        modalOverlay.addEventListener('click', (e) => {
+            if (e.target === modalOverlay) {
+                modalOverlay.classList.remove('active');
+            }
+        });
+
+        // 渲染词条列表
+        function renderWordList() {
+            if (words.length === 0) {
+                wordList.innerHTML = '<div class="no-words">暂无存储的词条</div>';
+                return;
+            }
+
+            // 按添加时间排序（数组顺序就是添加顺序）
+            wordList.innerHTML = '';
+            words.forEach(word => {
+                const wordItem = document.createElement('div');
+                wordItem.className = `word-item ${selectedWords.has(word) ? 'selected' : ''}`;
+                wordItem.textContent = word;
+                
+                // 点击词条切换选中状态
+                wordItem.addEventListener('click', (e) => {
+                    e.stopPropagation(); // 阻止事件冒泡（避免触发弹窗外部关闭）
+                    if (selectedWords.has(word)) {
+                        selectedWords.delete(word);
+                        wordItem.classList.remove('selected');
+                    } else {
+                        selectedWords.add(word);
+                        wordItem.classList.add('selected');
+                    }
+                    updateDeleteBtnState(); // 更新删除按钮状态
+                });
+                
+                wordList.appendChild(wordItem);
+            });
+        }
+
+        // 更新删除按钮状态（有选中词条则启用，否则禁用）
+        function updateDeleteBtnState() {
+            deleteSelectedBtn.disabled = selectedWords.size === 0;
+        }
+
+        // 删除选中词条
+        deleteSelectedBtn.addEventListener('click', () => {
+            if (selectedWords.size === 0) return;
+
+            // 过滤掉选中的词条
+            words = words.filter(word => !selectedWords.has(word));
+            // 更新本地存储
+            localStorage.setItem('wordList', JSON.stringify(words));
+            // 清空选中状态
+            selectedWords.clear();
+            // 重新渲染列表
+            renderWordList();
+            // 更新删除按钮状态
+            updateDeleteBtnState();
+        });
+    </script>
+</body>
+</html>
